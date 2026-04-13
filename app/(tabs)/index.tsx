@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useEvents } from '../../context/EventContext';
+import { useAuth } from '../../context/AuthContext';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius, Shadow } from '../../constants/theme';
 import EventCard from '../../components/EventCard';
 import StatCard from '../../components/StatCard';
@@ -18,6 +19,7 @@ import EmptyState from '../../components/EmptyState';
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const { displayName, user } = useAuth();
   const {
     events,
     upcomingEvents,
@@ -55,6 +57,8 @@ export default function DashboardScreen() {
     setTimeout(() => setRefreshing(false), 600);
   };
 
+  const userTitle = displayName || user?.email?.split('@')[0] || 'DJ';
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView
@@ -65,6 +69,7 @@ export default function DashboardScreen() {
         {/* ── Header */}
         <View style={styles.header}>
           <View>
+            <Text style={styles.userName}>{userTitle}</Text>
             <Text style={styles.greeting}>{greeting()}</Text>
             <Text style={styles.dateText}>{todayStr}</Text>
           </View>
@@ -202,6 +207,12 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.extrabold,
     color: Colors.text,
     letterSpacing: -0.5,
+  },
+  userName: {
+    fontSize: FontSize.sm,
+    color: Colors.accent,
+    fontWeight: FontWeight.semibold,
+    marginBottom: 2,
   },
   dateText: {
     fontSize: FontSize.sm,

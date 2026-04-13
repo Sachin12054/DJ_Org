@@ -14,11 +14,19 @@ import { useEvents } from '../../context/EventContext';
 import { DJEvent } from '../../types/Event';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius, Shadow } from '../../constants/theme';
 
+function toLocalDateKey(dateInput: string | Date): string {
+  const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export default function CalendarScreen() {
   const router = useRouter();
   const { events } = useEvents();
   const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    toLocalDateKey(new Date())
   );
 
   // Build marked dates for calendar
@@ -27,7 +35,7 @@ export default function CalendarScreen() {
     const marks: Record<string, any> = {};
 
     events.forEach(event => {
-      const dateKey = event.eventDate.split('T')[0];
+      const dateKey = toLocalDateKey(event.eventDate);
       if (!byDate[dateKey]) byDate[dateKey] = [];
       byDate[dateKey].push(event);
     });

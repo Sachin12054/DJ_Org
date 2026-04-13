@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Alert,
   Linking,
   Share,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -22,8 +23,16 @@ export default function EventDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getEventById, markStatus, deleteEvent, updateEvent, togglePin } = useEvents();
+  const [editingPaid, setEditingPaid] = useState(false);
+  const [paidInput, setPaidInput] = useState('');
 
   const event = getEventById(id);
+
+  useEffect(() => {
+    if (event) {
+      setPaidInput(String(event.advancePaid));
+    }
+  }, [event?.id, event?.advancePaid]);
 
   if (!event) {
     return (
@@ -92,6 +101,13 @@ export default function EventDetailScreen() {
     ]);
   };
 
+  const handleRetrieve = () => {
+    Alert.alert('Retrieve Event?', `Move "${event.eventName}" back to upcoming events?`, [
+      { text: 'No', style: 'cancel' },
+      { text: 'Retrieve', onPress: () => markStatus(event.id, 'upcoming') },
+    ]);
+  };
+
   const handleDelete = () => {
     Alert.alert('Delete Event', `Permanently delete "${event.eventName}"?`, [
       { text: 'Cancel', style: 'cancel' },
@@ -120,6 +136,38 @@ export default function EventDetailScreen() {
     medium: Colors.priorityMedium,
     low: Colors.priorityLow,
   }[event.priority];
+
+  const remainingAmount = Math.max(0, event.totalAmount - event.advancePaid);
+
+  const handleMarkFullPaid = async () => {
+    try {
+      await updateEvent(event.id, { advancePaid: event.totalAmount });
+      setEditingPaid(false);
+    } catch {
+      Alert.alert('Error', 'Could not update payment right now.');
+    }
+  };
+
+  const handleSavePaidAmount = async () => {
+    const parsed = Number(paidInput);
+
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      Alert.alert('Invalid amount', 'Enter a valid paid amount.');
+      return;
+    }
+
+    if (parsed > event.totalAmount) {
+      Alert.alert('Invalid amount', 'Paid amount cannot be greater than total amount.');
+      return;
+    }
+
+    try {
+      await updateEvent(event.id, { advancePaid: parsed });
+      setEditingPaid(false);
+    } catch {
+      Alert.alert('Error', 'Could not update paid amount.');
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -211,6 +259,51 @@ export default function EventDetailScreen() {
             </Text>
             <Text style={styles.paymentTotalLabel}>Total Amount</Text>
           </View>
+
+          <View style={styles.paymentStatsRow}>
+            <View style={styles.paymentStatBox}>
+              <Text style={styles.paymentStatLabel}>Paid</Text>
+              <Text style={[styles.paymentStatValue, { color: Colors.success }]}>₹{event.advancePaid.toLocaleString('en-IN')}</Text>
+            </View>
+            <View style={styles.paymentStatBox}>
+              <Text style={styles.paymentStatLabel}>Remaining</Text>
+              <Text style={[styles.paymentStatValue, { color: remainingAmount > 0 ? Colors.warning : Colors.success }]}>₹{remainingAmount.toLocaleString('en-IN')}</Text>
+            </View>
+          </View>
+
+          <View style={styles.paymentActionRow}>
+            <TouchableOpacity style={[styles.paymentBtn, styles.fullPaidBtn]} onPress={handleMarkFullPaid}>
+              <Ionicons name="checkmark-done-circle" size={18} color={Colors.text} />
+              <Text style={styles.paymentBtnText}>Full Amount Paid</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.paymentBtn, styles.editPaidBtn]}
+              onPress={() => setEditingPaid(prev => !prev)}
+            >
+              <Ionicons name="create-outline" size={18} color={Colors.text} />
+              <Text style={styles.paymentBtnText}>{editingPaid ? 'Close' : 'Edit Paid'}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {editingPaid && (
+            <View style={styles.editPaidWrap}>
+              <Text style={styles.editPaidLabel}>Enter Paid Amount (₹)</Text>
+              <View style={styles.editPaidRow}>
+                <TextInput
+                  style={styles.editPaidInput}
+                  value={paidInput}
+                  onChangeText={setPaidInput}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor={Colors.textMuted}
+                />
+                <TouchableOpacity style={styles.editPaidSaveBtn} onPress={handleSavePaidAmount}>
+                  <Text style={styles.editPaidSaveText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           <PaymentBar total={event.totalAmount} paid={event.advancePaid} />
         </View>
 
@@ -266,6 +359,18 @@ export default function EventDetailScreen() {
             >
               <Ionicons name="close-circle" size={20} color={Colors.text} />
               <Text style={styles.statusBtnText}>Cancel Event</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {event.status !== 'upcoming' && (
+          <View style={styles.statusActions}>
+            <TouchableOpacity
+              style={[styles.statusBtn, styles.retrieveBtn, Shadow.sm]}
+              onPress={handleRetrieve}
+            >
+              <Ionicons name="refresh-circle" size={20} color={Colors.text} />
+              <Text style={styles.statusBtnText}>Retrieve Event</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -436,6 +541,90 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
   },
   paymentTotalLabel: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
+  paymentStatsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  paymentStatBox: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.sm,
+  },
+  paymentStatLabel: {
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+    marginBottom: 2,
+  },
+  paymentStatValue: {
+    fontSize: FontSize.md,
+    color: Colors.text,
+    fontWeight: FontWeight.bold,
+  },
+  paymentActionRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  paymentBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+  },
+  fullPaidBtn: { backgroundColor: Colors.success },
+  editPaidBtn: { backgroundColor: Colors.secondary },
+  paymentBtnText: {
+    color: Colors.text,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+  },
+  editPaidWrap: {
+    marginBottom: Spacing.sm,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.sm,
+  },
+  editPaidLabel: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.sm,
+    marginBottom: 6,
+  },
+  editPaidRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    alignItems: 'center',
+  },
+  editPaidInput: {
+    flex: 1,
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 10,
+    color: Colors.text,
+    fontSize: FontSize.md,
+  },
+  editPaidSaveBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  editPaidSaveText: {
+    color: Colors.text,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+  },
   reqHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -470,6 +659,7 @@ const styles = StyleSheet.create({
   },
   completeBtn: { backgroundColor: Colors.success },
   cancelBtn: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
+  retrieveBtn: { backgroundColor: Colors.secondary },
   statusBtnText: { color: Colors.text, fontWeight: FontWeight.bold, fontSize: FontSize.md },
   deleteBtn: {
     flexDirection: 'row',

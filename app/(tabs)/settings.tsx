@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getAppSettings, saveAppSettings, AppSettings, exportEventsAsJSON } from '../../lib/storage';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius, Shadow } from '../../constants/theme';
 import { useEvents } from '../../context/EventContext';
+import { useAuth } from '../../context/AuthContext';
 
 function SettingsRow({
   icon,
@@ -51,6 +52,7 @@ function SettingsRow({
 
 export default function SettingsScreen() {
   const { events } = useEvents();
+  const { user, logout } = useAuth();
   const [settings, setSettings] = useState<AppSettings>({
     notificationsEnabled: true,
     paymentReminders: true,
@@ -83,7 +85,24 @@ export default function SettingsScreen() {
   };
 
   const handleAbout = () => {
-    Alert.alert('DJ Event Manager', 'Version 1.0.0\nBuilt for professional DJs\n—\nManage events, payments, and reminders all in one place.');
+    Alert.alert('Rix', 'Version 1.0.0\nBuilt for professional DJs\n—\nManage events, payments, and reminders all in one place.');
+  };
+
+  const handleLogout = () => {
+    Alert.alert('Logout', 'Do you want to sign out from this account?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await logout();
+          } catch {
+            Alert.alert('Error', 'Could not logout right now. Please try again.');
+          }
+        },
+      },
+    ]);
   };
 
   return (
@@ -99,8 +118,8 @@ export default function SettingsScreen() {
             <Ionicons name="musical-notes" size={32} color={Colors.primary} />
           </View>
           <View>
-            <Text style={styles.djTitle}>DJ Event Manager</Text>
-            <Text style={styles.djSub}>{events.length} events · ₹ Indian Rupee</Text>
+            <Text style={styles.djTitle}>Rix</Text>
+            <Text style={styles.djSub}>{user?.email ?? 'Not signed in'}</Text>
           </View>
         </View>
 
@@ -178,7 +197,7 @@ export default function SettingsScreen() {
           <SettingsRow
             icon="information-circle-outline"
             label="About"
-            subtitle="DJ Event Manager v1.0.0"
+            subtitle="Rix v1.0.0"
             iconColor={Colors.textSecondary}
             onPress={handleAbout}
           />
@@ -190,10 +209,18 @@ export default function SettingsScreen() {
             iconColor={Colors.textSecondary}
             onPress={() => Linking.openURL('https://github.com')}
           />
+          <View style={styles.divider} />
+          <SettingsRow
+            icon="log-out-outline"
+            label="Logout"
+            subtitle="Sign out from this device"
+            iconColor={Colors.error}
+            onPress={handleLogout}
+          />
         </View>
 
         <Text style={styles.footerText}>
-          DJ Event Manager · Made with 🎧 for DJs
+          Rix · Made with 🎧 for DJs
         </Text>
       </ScrollView>
     </SafeAreaView>

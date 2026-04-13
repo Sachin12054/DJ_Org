@@ -48,3 +48,6 @@ GoogleService-Info.plist
 # Environment variables
 .env
 .env.*
+
+# Windows reserved filename that can break git add on Windows
+nul

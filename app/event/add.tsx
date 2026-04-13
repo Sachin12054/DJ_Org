@@ -140,6 +140,15 @@ function DateField({
   );
 }
 
+function FormField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      {children}
+    </View>
+  );
+}
+
 // ─── Priority Selector ────────────────────────────────────────────────────────
 
 const PRIORITIES: { key: Priority; label: string; color: string; icon: string }[] = [
@@ -246,15 +255,6 @@ export default function AddEventScreen() {
     }
   };
 
-  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      {children}
-    </View>
-  );
-
-  const inputStyle = (focused?: boolean) => [styles.input, focused && styles.inputFocused];
-
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       {/* Header */}
@@ -283,7 +283,7 @@ export default function AddEventScreen() {
         >
           {/* ── Basic Info */}
           <Text style={styles.sectionTitle}>🎉 Event Details</Text>
-          <Field label="Event Name *">
+          <FormField label="Event Name *">
             <TextInput
               style={styles.input}
               value={eventName}
@@ -291,8 +291,8 @@ export default function AddEventScreen() {
               placeholder="e.g. Wedding Reception"
               placeholderTextColor={Colors.textMuted}
             />
-          </Field>
-          <Field label="Client Name *">
+          </FormField>
+          <FormField label="Client Name *">
             <TextInput
               style={styles.input}
               value={clientName}
@@ -300,8 +300,8 @@ export default function AddEventScreen() {
               placeholder="Full name"
               placeholderTextColor={Colors.textMuted}
             />
-          </Field>
-          <Field label="Contact Number">
+          </FormField>
+          <FormField label="Contact Number">
             <TextInput
               style={styles.input}
               value={phone}
@@ -310,8 +310,8 @@ export default function AddEventScreen() {
               placeholderTextColor={Colors.textMuted}
               keyboardType="phone-pad"
             />
-          </Field>
-          <Field label="Location">
+          </FormField>
+          <FormField label="Location">
             <TextInput
               style={styles.input}
               value={location}
@@ -319,7 +319,7 @@ export default function AddEventScreen() {
               placeholder="Venue name & city"
               placeholderTextColor={Colors.textMuted}
             />
-          </Field>
+          </FormField>
 
           {/* ── Date & Time */}
           <Text style={styles.sectionTitle}>📅 Schedule</Text>

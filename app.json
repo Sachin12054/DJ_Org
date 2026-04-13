@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "DJ Event Manager",
+    "name": "Rix",
     "slug": "dj-event-manager",
     "scheme": "djmanager",
     "version": "1.0.0",
@@ -43,6 +43,12 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "3be2c047-7504-403f-bd13-0a508606b09e"
+      }
+    },
+    "owner": "kishore_sachin"
   }
 }

@@ -1,8 +1,10 @@
 import { Tabs } from 'expo-router';
-import { View, StyleSheet, Platform } from 'react-native';
+import { Redirect, type Href } from 'expo-router';
+import { View, StyleSheet, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Colors, FontSize } from '../../constants/theme';
+import { useAuth } from '../../context/AuthContext';
 
 function TabIcon({
   name,
@@ -21,6 +23,20 @@ function TabIcon({
 }
 
 export default function TabsLayout() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
+  if (!user) {
+    return <Redirect href={'/(auth)/login' as Href} />;
+  }
+
   return (
     <Tabs
       screenOptions={{
@@ -87,6 +103,12 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.background,
+  },
   tabBar: {
     borderTopWidth: 1,
     borderTopColor: Colors.border,

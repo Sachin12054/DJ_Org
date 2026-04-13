@@ -15,6 +15,7 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useAuth } from './AuthContext';
 import { DJEvent, CreateEventInput, UpdateEventInput, EventStatus } from '../types/Event';
 import {
   scheduleEventReminder,
@@ -74,25 +75,36 @@ function generateId(): string {
 
 const EVENTS_COLLECTION = 'events';
 
-async function firestoreSave(event: DJEvent): Promise<void> {
-  await setDoc(doc(db, EVENTS_COLLECTION, event.id), event);
+function eventsCollectionRef(userId: string) {
+  return collection(db, 'users', userId, EVENTS_COLLECTION);
 }
 
-async function firestoreDelete(id: string): Promise<void> {
-  await deleteDoc(doc(db, EVENTS_COLLECTION, id));
+async function firestoreSave(userId: string, event: DJEvent): Promise<void> {
+  await setDoc(doc(db, 'users', userId, EVENTS_COLLECTION, event.id), event);
+}
+
+async function firestoreDelete(userId: string, id: string): Promise<void> {
+  await deleteDoc(doc(db, 'users', userId, EVENTS_COLLECTION, id));
 }
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function EventProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, { events: [], loading: true });
+  const { user } = useAuth();
 
   // Real-time Firestore listener
   useEffect(() => {
+    if (!user) {
+      dispatch({ type: 'SET_EVENTS', events: [] });
+      dispatch({ type: 'SET_LOADING', loading: false });
+      return;
+    }
+
     dispatch({ type: 'SET_LOADING', loading: true });
 
     const q = query(
-      collection(db, EVENTS_COLLECTION),
+      eventsCollectionRef(user.uid),
       orderBy('createdAt', 'desc')
     );
 
@@ -110,11 +122,15 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   // ─── CRUD ──────────────────────────────────────────────────────────────────
 
   const addEvent = useCallback(async (input: CreateEventInput): Promise<DJEvent> => {
+    if (!user) {
+      throw new Error('You must be logged in to add an event.');
+    }
+
     const now = new Date().toISOString();
     const event: DJEvent = {
       ...input,
@@ -129,11 +145,15 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
     await schedulePaymentReminder(event);
     if (notifId) event.notificationId = notifId;
 
-    await firestoreSave(event);
+    await firestoreSave(user.uid, event);
     return event;
-  }, []);
+  }, [user]);
 
   const updateEvent = useCallback(async (id: string, input: UpdateEventInput): Promise<void> => {
+    if (!user) {
+      throw new Error('You must be logged in to update an event.');
+    }
+
     const existing = state.events.find(e => e.id === id);
     if (!existing) return;
 
@@ -153,28 +173,40 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
     await schedulePaymentReminder(updated);
     if (notifId) updated.notificationId = notifId;
 
-    await firestoreSave(updated);
-  }, [state.events]);
+    await firestoreSave(user.uid, updated);
+  }, [state.events, user]);
 
   const deleteEvent = useCallback(async (id: string): Promise<void> => {
+    if (!user) {
+      throw new Error('You must be logged in to delete an event.');
+    }
+
     const event = state.events.find(e => e.id === id);
     if (event?.notificationId) {
       await cancelNotification(event.notificationId);
     }
-    await firestoreDelete(id);
-  }, [state.events]);
+    await firestoreDelete(user.uid, id);
+  }, [state.events, user]);
 
   const togglePin = useCallback(async (id: string): Promise<void> => {
+    if (!user) {
+      throw new Error('You must be logged in to update an event.');
+    }
+
     const event = state.events.find(e => e.id === id);
     if (!event) return;
-    await firestoreSave({ ...event, isPinned: !event.isPinned, updatedAt: new Date().toISOString() });
-  }, [state.events]);
+    await firestoreSave(user.uid, { ...event, isPinned: !event.isPinned, updatedAt: new Date().toISOString() });
+  }, [state.events, user]);
 
   const markStatus = useCallback(async (id: string, status: EventStatus): Promise<void> => {
+    if (!user) {
+      throw new Error('You must be logged in to update an event.');
+    }
+
     const event = state.events.find(e => e.id === id);
     if (!event) return;
-    await firestoreSave({ ...event, status, updatedAt: new Date().toISOString() });
-  }, [state.events]);
+    await firestoreSave(user.uid, { ...event, status, updatedAt: new Date().toISOString() });
+  }, [state.events, user]);
 
   const getEventById = useCallback((id: string) => {
     return state.events.find(e => e.id === id);
