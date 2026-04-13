@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   StyleSheet,
   Text,
+  ScrollView,
   TextInput,
   View,
 } from 'react-native';
@@ -16,12 +17,14 @@ import { Colors, BorderRadius, FontSize, FontWeight, Spacing } from '../../const
 import { useAuth } from '../../context/AuthContext';
 
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const handleLogin = async () => {
+    if (submitting || user) return;
+
     if (!email.trim() || !password) {
       Alert.alert('Missing details', 'Please enter email and password.');
       return;
@@ -31,7 +34,14 @@ export default function LoginScreen() {
     try {
       await login(email, password);
     } catch (error: any) {
-      Alert.alert('Login failed', error?.message ?? 'Please check your credentials.');
+      const code = error?.code as string | undefined;
+      const message =
+        code === 'auth/invalid-email'
+          ? 'Please enter a valid email address.'
+          : code === 'auth/invalid-credential' || code === 'auth/user-not-found' || code === 'auth/wrong-password'
+            ? 'Invalid email or password.'
+            : error?.message ?? 'Please check your credentials.';
+      Alert.alert('Login failed', message);
     } finally {
       setSubmitting(false);
     }
@@ -41,45 +51,52 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
         style={styles.wrapper}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.card}>
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Login to manage your DJ events</Text>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.card}>
+            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.subtitle}>Login to manage your DJ events</Text>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor={Colors.textMuted}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-          />
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor={Colors.textMuted}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={email}
+              onChangeText={setEmail}
+            />
 
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor={Colors.textMuted}
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor={Colors.textMuted}
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
 
-          <Pressable style={styles.button} onPress={handleLogin} disabled={submitting}>
-            {submitting ? (
-              <ActivityIndicator color={Colors.textOnPrimary} />
-            ) : (
-              <Text style={styles.buttonText}>Login</Text>
-            )}
-          </Pressable>
+            <Pressable style={styles.button} onPress={handleLogin} disabled={submitting}>
+              {submitting ? (
+                <ActivityIndicator color={Colors.textOnPrimary} />
+              ) : (
+                <Text style={styles.buttonText}>Login</Text>
+              )}
+            </Pressable>
 
             <Link href={'/(auth)/signup' as Href} asChild>
-            <Pressable style={styles.linkWrap}>
-              <Text style={styles.linkText}>No account? Create one</Text>
-            </Pressable>
-          </Link>
-        </View>
+              <Pressable style={styles.linkWrap}>
+                <Text style={styles.linkText}>No account? Create one</Text>
+              </Pressable>
+            </Link>
+          </View>
+          </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -92,6 +109,9 @@ const styles = StyleSheet.create({
   },
   wrapper: {
     flex: 1,
+  },
+  content: {
+    flexGrow: 1,
     justifyContent: 'center',
     padding: Spacing.md,
   },
@@ -107,11 +127,12 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontSize: FontSize.xxl,
     fontWeight: FontWeight.bold,
+    marginBottom: Spacing.xs,
   },
   subtitle: {
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
-    marginTop: -Spacing.xs,
+    marginBottom: Spacing.lg,
   },
   input: {
     backgroundColor: Colors.surface,
@@ -122,6 +143,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: 12,
+    marginBottom: Spacing.md,
   },
   button: {
     backgroundColor: Colors.primary,
@@ -129,6 +151,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 48,
+    marginTop: Spacing.xs,
   },
   buttonText: {
     color: Colors.textOnPrimary,
@@ -137,7 +160,7 @@ const styles = StyleSheet.create({
   },
   linkWrap: {
     alignItems: 'center',
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.lg,
   },
   linkText: {
     color: Colors.accent,

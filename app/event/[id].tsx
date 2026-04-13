@@ -13,7 +13,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { useEvents } from '../../context/EventContext';
+import { useAuth } from '../../context/AuthContext';
 import { Requirement } from '../../types/Event';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius, Shadow } from '../../constants/theme';
 import PaymentBar from '../../components/PaymentBar';
@@ -22,6 +25,7 @@ import PriorityBadge from '../../components/PriorityBadge';
 export default function EventDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { displayName, user } = useAuth();
   const { getEventById, markStatus, deleteEvent, updateEvent, togglePin } = useEvents();
   const [editingPaid, setEditingPaid] = useState(false);
   const [paidInput, setPaidInput] = useState('');
@@ -122,6 +126,113 @@ export default function EventDetailScreen() {
     ]);
   };
 
+  const handleGenerateInvoice = async () => {
+    const escapeHtml = (value: string) =>
+      value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const artistName = displayName || user?.email?.split('@')[0] || 'DJ Artist';
+    const invoiceNo = `INV-${event.id.slice(-6).toUpperCase()}`;
+    const issueDate = new Date().toLocaleDateString('en-IN');
+    const eventDateTime = new Date(event.eventDate).toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+
+    const requirements = event.requirements.length
+      ? `<ul style="margin: 6px 0 0 16px; padding: 0;">${event.requirements
+          .map(req => `<li style="margin-bottom: 4px;">${escapeHtml(req.text)}</li>`)
+          .join('')}</ul>`
+      : '<span>-</span>';
+
+    const html = `
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <style>
+            body { font-family: Arial, sans-serif; color: #111827; padding: 24px; }
+            h1 { margin: 0; font-size: 24px; }
+            h2 { margin: 0; font-size: 18px; }
+            .muted { color: #6b7280; }
+            .row { display: flex; justify-content: space-between; margin-top: 6px; }
+            .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin-top: 14px; }
+            .amount { font-size: 20px; font-weight: bold; }
+            .line { border-top: 1px solid #e5e7eb; margin: 12px 0; }
+            .kv { margin: 4px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="row">
+            <div>
+              <h1>INVOICE</h1>
+              <div class="muted">Invoice No: ${escapeHtml(invoiceNo)}</div>
+              <div class="muted">Issued: ${escapeHtml(issueDate)}</div>
+            </div>
+            <div style="text-align: right;">
+              <h2>${escapeHtml(artistName)}</h2>
+              <div class="muted">DJ Artist</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="kv"><strong>Client:</strong> ${escapeHtml(event.clientName)}</div>
+            <div class="kv"><strong>Phone:</strong> ${escapeHtml(event.phone || '-')}</div>
+            <div class="kv"><strong>Event:</strong> ${escapeHtml(event.eventName)}</div>
+            <div class="kv"><strong>Date & Time:</strong> ${escapeHtml(eventDateTime)}</div>
+            <div class="kv"><strong>Location:</strong> ${escapeHtml(event.location || '-')}</div>
+          </div>
+
+          <div class="card">
+            <div class="row"><span>Total Amount</span><strong>Rs ${event.totalAmount.toLocaleString('en-IN')}</strong></div>
+            <div class="row"><span>Amount Paid</span><strong>Rs ${event.advancePaid.toLocaleString('en-IN')}</strong></div>
+            <div class="line"></div>
+            <div class="row amount"><span>Balance Due</span><span>Rs ${remainingAmount.toLocaleString('en-IN')}</span></div>
+          </div>
+
+          <div class="card">
+            <div><strong>Requirements</strong></div>
+            ${requirements}
+          </div>
+
+          <div class="card">
+            <div><strong>Notes</strong></div>
+            <div>${escapeHtml(event.notes || '-')}</div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    try {
+      const { uri } = await Print.printToFileAsync({ html });
+      const canShare = await Sharing.isAvailableAsync();
+
+      if (canShare) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `Invoice - ${event.eventName}`,
+          UTI: '.pdf',
+        });
+        return;
+      }
+
+      await Share.share({
+        title: `Invoice - ${event.eventName}`,
+        message: `Invoice generated at: ${uri}`,
+        url: uri,
+      });
+    } catch {
+      Alert.alert('Invoice failed', 'Could not generate invoice PDF. Please try again.');
+    }
+  };
+
   const toggleRequirement = (reqId: string) => {
     const updated = event.requirements.map(r =>
       r.id === reqId ? { ...r, checked: !r.checked } : r
@@ -197,7 +308,13 @@ export default function EventDetailScreen() {
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
+      >
         {/* ── Hero */}
         <View style={[styles.heroCard, { borderLeftColor: priorityBorderColor }, Shadow.md]}>
           <View style={styles.heroTop}>
@@ -372,14 +489,22 @@ export default function EventDetailScreen() {
               <Ionicons name="refresh-circle" size={20} color={Colors.text} />
               <Text style={styles.statusBtnText}>Retrieve Event</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.statusBtn, styles.invoiceBtn, Shadow.sm]}
+              onPress={handleGenerateInvoice}
+            >
+              <Ionicons name="document-text" size={20} color={Colors.text} />
+              <Text style={styles.statusBtnText}>Generate Invoice PDF</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.statusBtn, styles.deleteStatusBtn, Shadow.sm]}
+              onPress={handleDelete}
+            >
+              <Ionicons name="trash" size={20} color={Colors.text} />
+              <Text style={styles.statusBtnText}>Delete Event</Text>
+            </TouchableOpacity>
           </View>
         )}
-
-        {/* ── Delete */}
-        <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
-          <Ionicons name="trash-outline" size={18} color={Colors.error} />
-          <Text style={styles.deleteBtnText}>Delete Event</Text>
-        </TouchableOpacity>
 
         <Text style={styles.meta}>
           Created {new Date(event.createdAt).toLocaleDateString('en-IN')}
@@ -660,18 +785,8 @@ const styles = StyleSheet.create({
   completeBtn: { backgroundColor: Colors.success },
   cancelBtn: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
   retrieveBtn: { backgroundColor: Colors.secondary },
+  invoiceBtn: { backgroundColor: Colors.primary },
+  deleteStatusBtn: { backgroundColor: Colors.error },
   statusBtnText: { color: Colors.text, fontWeight: FontWeight.bold, fontSize: FontSize.md },
-  deleteBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.error + '44',
-    marginBottom: Spacing.sm,
-  },
-  deleteBtnText: { color: Colors.error, fontWeight: FontWeight.semibold, fontSize: FontSize.md },
   meta: { textAlign: 'center', fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 4 },
 });

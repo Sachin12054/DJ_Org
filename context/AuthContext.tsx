@@ -21,6 +21,14 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase().replace(/\s+/g, '');
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [displayName, setDisplayName] = useState('');
@@ -57,23 +65,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       displayName,
       loading,
       async login(email: string, password: string) {
-        await signInWithEmailAndPassword(auth, email.trim(), password);
+        const cleanEmail = normalizeEmail(email);
+        if (!isValidEmail(cleanEmail)) {
+          throw new Error('Please enter a valid email address.');
+        }
+        await signInWithEmailAndPassword(auth, cleanEmail, password);
       },
       async signup(name: string, email: string, password: string) {
         const cleanName = name.trim();
-        const cleanEmail = email.trim();
+        const cleanEmail = normalizeEmail(email);
+
+        if (!isValidEmail(cleanEmail)) {
+          throw new Error('Please enter a valid email address.');
+        }
+
         const cred = await createUserWithEmailAndPassword(auth, cleanEmail, password);
 
         await updateProfile(cred.user, { displayName: cleanName });
-        await setDoc(
-          doc(db, 'users', cred.user.uid),
-          {
-            name: cleanName,
-            email: cleanEmail,
-            createdAt: new Date().toISOString(),
-          },
-          { merge: true }
-        );
+
+        // Firestore profile write is non-blocking for auth success.
+        // If rules deny this write, user should still be signed in.
+        try {
+          await setDoc(
+            doc(db, 'users', cred.user.uid),
+            {
+              name: cleanName,
+              email: cleanEmail,
+              createdAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+        } catch (error: any) {
+          if (error?.code !== 'permission-denied' && error?.code !== 'PERMISSION_DENIED') {
+            throw error;
+          }
+          console.warn('Firestore profile write skipped due to permission rules.');
+        }
 
         setDisplayName(cleanName);
       },

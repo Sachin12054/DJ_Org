@@ -280,6 +280,8 @@ export default function AddEventScreen() {
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets
         >
           {/* ── Basic Info */}
           <Text style={styles.sectionTitle}>🎉 Event Details</Text>
